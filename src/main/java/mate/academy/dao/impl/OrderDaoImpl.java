@@ -1,13 +1,10 @@
 package mate.academy.dao.impl;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import mate.academy.dao.OrderDao;
 import mate.academy.exception.DataProcessingException;
 import mate.academy.lib.Dao;
 import mate.academy.model.Order;
-import mate.academy.model.Ticket;
 import mate.academy.model.User;
 import mate.academy.util.HibernateUtil;
 import org.hibernate.Session;
@@ -23,15 +20,9 @@ public class OrderDaoImpl implements OrderDao {
         try {
             session = HibernateUtil.getSessionFactory().openSession();
             transaction = session.beginTransaction();
-            List<Ticket> managedTickets = new ArrayList<>();
-            for (Ticket ticket : order.getTickets()) {
-                Ticket managedTicket = session.merge(ticket);
-                managedTickets.add(managedTicket);
-            }
-            order.setTickets(managedTickets);
-            session.persist(order);
+            Order merge = session.merge(order);
             transaction.commit();
-            return order;
+            return merge;
         } catch (Exception e) {
             if (transaction != null) {
                 transaction.rollback();
@@ -45,30 +36,19 @@ public class OrderDaoImpl implements OrderDao {
     }
 
     @Override
-    public Optional<Order> getByUser(User user) {
+    public List<Order> getByUser(User user) {
         try (Session session = HibernateUtil.getSessionFactory().openSession()) {
             Query<Order> query = session.createQuery("FROM Order o "
-                    + "LEFT JOIN FETCH o.tickets "
-                    + "WHERE o.user =:user "
-                    + "ORDER BY o.orderDate DESC ", Order.class);
-            query.setParameter("user", user);
-            query.setMaxResults(1);
-            return query.uniqueResultOptional();
-        } catch (Exception e) {
-            throw new DataProcessingException("Can't find order by user " + user, e);
-        }
-    }
-
-    @Override
-    public List<Order> getOrdersHistory(User user) {
-        try (Session session = HibernateUtil.getSessionFactory().openSession()) {
-            Query<Order> query = session.createQuery("FROM Order o "
+                    + "LEFT JOIN FETCH o.tickets t "
+                    + "LEFT JOIN FETCH t.movieSession ms "
                     + "LEFT JOIN FETCH o.user "
-                    + "LEFT JOIN FETCH o.tickets "
-                    + "WHERE o.user =:user "
-                    + "ORDER BY o.orderDate DESC", Order.class);
+                    + "LEFT JOIN FETCH ms.movie "
+                    + "LEFT JOIN FETCH ms.cinemaHall "
+                    + "WHERE o.user =:user ", Order.class);
             query.setParameter("user", user);
             return query.getResultList();
+        } catch (Exception e) {
+            throw new DataProcessingException("Can't find order by user " + user, e);
         }
     }
 }
